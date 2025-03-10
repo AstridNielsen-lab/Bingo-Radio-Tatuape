@@ -8,17 +8,13 @@ type BingoCard = {
   marks: boolean[][];
 };
 
-type WinPattern = 'line' | 'column' | 'diagonal' | 'corners' | 'full';
+type WinPattern = 'line';
 
 const CARD_PRICE = 5;
 const MAX_CARDS = 4;
 const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
   line: 15,
-  column: 15,
-  diagonal: 20,
-  corners: 10,
-  full: 100,
 };
 
 const DRAW_SPEEDS = {
@@ -51,7 +47,6 @@ function App() {
   const [drawSpeed, setDrawSpeed] = useState<keyof typeof DRAW_SPEEDS>('normal');
   const [drawnNumbersHistory, setDrawnNumbersHistory] = useState<number[]>([]);
 
-  // Gerar uma cartela de bingo
   const generateBingoCard = (): BingoCard => {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
     const marks: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
@@ -77,7 +72,6 @@ function App() {
     };
   };
 
-  // Comprar uma nova cartela
   const buyCard = () => {
     if (balance >= CARD_PRICE && cards.length < MAX_CARDS) {
       setBalance(prev => prev - CARD_PRICE);
@@ -86,38 +80,15 @@ function App() {
     }
   };
 
-  // Verificar vitória
   const checkWin = (card: BingoCard): WinPattern | null => {
     // Verificar linhas
     for (let row = 0; row < 5; row++) {
       if (card.marks[row].every(mark => mark)) return 'line';
     }
 
-    // Verificar colunas
-    for (let col = 0; col < 5; col++) {
-      if (card.marks.every(row => row[col])) return 'column';
-    }
-
-    // Verificar diagonais
-    const mainDiagonal = Array(5).every((_, i) => card.marks[i][i]);
-    const secondaryDiagonal = Array(5).every((_, i) => card.marks[i][4 - i]);
-    if (mainDiagonal || secondaryDiagonal) return 'diagonal';
-
-    // Verificar cantos
-    const corners = 
-      card.marks[0][0] && 
-      card.marks[0][4] && 
-      card.marks[4][0] && 
-      card.marks[4][4];
-    if (corners) return 'corners';
-
-    // Verificar cartela completa
-    if (card.marks.every(row => row.every(mark => mark))) return 'full';
-
     return null;
   };
 
-  // Marcar número na cartela
   const markNumber = (number: number) => {
     setCards(prev => prev.map(card => {
       const newMarks = [...card.marks.map(row => [...row])];
@@ -132,7 +103,6 @@ function App() {
     }));
   };
 
-  // Sortear próximo número
   const drawNumber = () => {
     if (!isGameRunning || gameOver) return;
 
@@ -158,7 +128,7 @@ function App() {
         setBalance(prev => prev + winAmount);
         setLastWin(winAmount);
         setWinningPattern(pattern);
-        playSound(pattern === 'line' ? 'line' : 'win');
+        playSound('line');
       }
     });
 
@@ -168,14 +138,12 @@ function App() {
     }
   };
 
-  // Encerrar o jogo
   const endGame = () => {
     setIsGameRunning(false);
     setIsAutoDrawing(false);
     setGameOver(true);
   };
 
-  // Iniciar novo jogo
   const startNewGame = () => {
     if (cards.length === 0) return;
     setDrawnNumbers([]);
@@ -193,13 +161,11 @@ function App() {
     })));
   };
 
-  // Efeitos sonoros
   const playSound = useCallback((soundName: keyof typeof SOUND_URLS) => {
     if (!sound) return;
     new Audio(SOUND_URLS[soundName]).play();
   }, [sound]);
 
-  // Sorteio automático
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGameRunning && isAutoDrawing && !gameOver) {
@@ -208,7 +174,6 @@ function App() {
     return () => clearInterval(interval);
   }, [isGameRunning, isAutoDrawing, gameOver, drawSpeed]);
 
-  // Criar preferência de pagamento
   const createPreference = async () => {
     try {
       const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
@@ -252,7 +217,7 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8">
         {/* Status Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Saldo</p>
             <p className="text-2xl font-bold">R$ {balance.toFixed(2)}</p>
@@ -266,10 +231,6 @@ function App() {
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Números Sorteados</p>
             <p className="text-2xl font-bold">{drawnNumbersHistory.length}/100</p>
-          </div>
-          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
-            <p className="text-sm text-gray-300 mb-1">Prêmio Máximo</p>
-            <p className="text-2xl font-bold text-yellow-400">R$ {(CARD_PRICE * WIN_MULTIPLIERS.full).toFixed(2)}</p>
           </div>
         </div>
 
@@ -306,18 +267,9 @@ function App() {
         </div>
 
         {/* Prêmios */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          {Object.entries(WIN_MULTIPLIERS).map(([pattern, multiplier]) => (
-            <div key={pattern} className="bg-violet-800/30 p-4 rounded-lg border border-violet-700/50">
-              <p className="text-yellow-400 font-bold mb-1 capitalize">
-                {pattern === 'line' ? 'Linha' :
-                 pattern === 'column' ? 'Coluna' :
-                 pattern === 'diagonal' ? 'Diagonal' :
-                 pattern === 'corners' ? 'Cantos' : 'Cartela Completa'}
-              </p>
-              <p className="text-lg font-bold">R$ {(CARD_PRICE * multiplier).toFixed(2)}</p>
-            </div>
-          ))}
+        <div className="bg-violet-800/30 p-4 rounded-lg border border-violet-700/50 mb-8">
+          <p className="text-yellow-400 font-bold mb-1">Prêmio por Linha Completa</p>
+          <p className="text-2xl font-bold">R$ {(CARD_PRICE * WIN_MULTIPLIERS.line).toFixed(2)}</p>
         </div>
 
         {/* Game Status */}
@@ -563,10 +515,7 @@ function App() {
                 <h3 className="text-lg font-bold text-white mb-2">Prêmios</h3>
                 <ul className="list-disc list-inside space-y-2">
                   <li>Linha Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.line).toFixed(2)}</li>
-                  <li>Coluna Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.column).toFixed(2)}</li>
-                  <li>Diagonal Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.diagonal).toFixed(2)}</li>
-                  <li>Cantos Completos: R$ {(CARD_PRICE * WIN_MULTIPLIERS.corners).toFixed(2)}</li>
-                  <li>Cartela Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.full).toFixed(2)}</li>
+                  <li>Você pode ganhar múltiplas vezes com a mesma cartela!</li>
                 </ul>
               </div>
 
