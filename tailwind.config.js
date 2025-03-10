@@ -16,6 +16,9 @@ export default {
           },
         },
       },
+      gridTemplateColumns: {
+        '10': 'repeat(10, minmax(0, 1fr))', // Atualizado para grid de 10x10
+      },
     },
   },
   plugins: [],

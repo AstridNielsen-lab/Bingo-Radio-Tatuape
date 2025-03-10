@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Volume2, VolumeX, Play, Square } from 'lucide-react';
+import { Volume2, VolumeX, FastForward, Rewind } from 'lucide-react';
 
 // Tipos
 type BingoCard = {
@@ -12,11 +12,17 @@ type WinPattern = 'line' | 'column' | 'full';
 
 const CARD_PRICE = 5;
 const MAX_CARDS = 4;
-const BINGO_NUMBERS = Array.from({ length: 75 }, (_, i) => i + 1);
+const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
   line: 10,
   column: 10,
   full: 50,
+};
+
+const DRAW_SPEEDS = {
+  slow: 8000,
+  normal: 4000,
+  fast: 2000,
 };
 
 function App() {
@@ -32,6 +38,8 @@ function App() {
   const [lastWin, setLastWin] = useState(0);
   const [winningPattern, setWinningPattern] = useState<WinPattern | null>(null);
   const [gameOver, setGameOver] = useState(false);
+  const [drawSpeed, setDrawSpeed] = useState<keyof typeof DRAW_SPEEDS>('normal');
+  const [drawnNumbersHistory, setDrawnNumbersHistory] = useState<number[]>([]);
 
   // Gerar uma cartela de bingo
   const generateBingoCard = (): BingoCard => {
@@ -40,9 +48,9 @@ function App() {
     
     // Preencher cada coluna com números apropriados
     for (let col = 0; col < 5; col++) {
-      const min = col * 15 + 1;
-      const max = min + 14;
-      const columnNumbers = Array.from({ length: 15 }, (_, i) => min + i);
+      const min = col * 20 + 1;
+      const max = min + 19;
+      const columnNumbers = Array.from({ length: 20 }, (_, i) => min + i);
       
       // Embaralhar e pegar os primeiros 5 números
       for (let row = 0; row < 5; row++) {
@@ -119,11 +127,12 @@ function App() {
     
     const newDrawnNumbers = [...drawnNumbers, newNumber];
     setDrawnNumbers(newDrawnNumbers);
+    setDrawnNumbersHistory(prev => [newNumber, ...prev]);
     markNumber(newNumber);
     playSound('draw');
 
     // Verificar se todos os números foram sorteados
-    if (newDrawnNumbers.length >= 75) {
+    if (newDrawnNumbers.length >= 100) {
       endGame();
       return;
     }
@@ -153,6 +162,7 @@ function App() {
   const startNewGame = () => {
     if (cards.length === 0) return;
     setDrawnNumbers([]);
+    setDrawnNumbersHistory([]);
     setIsGameRunning(true);
     setIsAutoDrawing(false);
     setWinningPattern(null);
@@ -181,10 +191,10 @@ function App() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isGameRunning && isAutoDrawing && !gameOver) {
-      interval = setInterval(drawNumber, 8000);
+      interval = setInterval(drawNumber, DRAW_SPEEDS[drawSpeed]);
     }
     return () => clearInterval(interval);
-  }, [isGameRunning, isAutoDrawing, gameOver]);
+  }, [isGameRunning, isAutoDrawing, gameOver, drawSpeed]);
 
   // Criar preferência de pagamento
   const createPreference = async () => {
@@ -242,7 +252,7 @@ function App() {
           </div>
           <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
             <p className="text-sm text-gray-400 mb-1">Números Sorteados</p>
-            <p className="text-2xl font-bold">{drawnNumbers.length}/75</p>
+            <p className="text-2xl font-bold">{drawnNumbers.length}/100</p>
           </div>
         </div>
 
@@ -288,28 +298,62 @@ function App() {
 
         {/* Draw Controls */}
         {isGameRunning && !gameOver && (
-          <div className="flex gap-4 mb-8">
-            <button
-              onClick={drawNumber}
-              disabled={isAutoDrawing}
-              className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
-                isAutoDrawing
-                  ? 'bg-gray-700 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500'
-              }`}
-            >
-              Sortear Número
-            </button>
-            <button
-              onClick={() => setIsAutoDrawing(!isAutoDrawing)}
-              className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
-                isAutoDrawing
-                  ? 'bg-red-600 hover:bg-red-500'
-                  : 'bg-blue-600 hover:bg-blue-500'
-              }`}
-            >
-              {isAutoDrawing ? 'Parar Sorteio Automático' : 'Iniciar Sorteio Automático'}
-            </button>
+          <div className="space-y-4 mb-8">
+            <div className="flex gap-4">
+              <button
+                onClick={drawNumber}
+                disabled={isAutoDrawing}
+                className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+                  isAutoDrawing
+                    ? 'bg-gray-700 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500'
+                }`}
+              >
+                Sortear Número
+              </button>
+              <button
+                onClick={() => setIsAutoDrawing(!isAutoDrawing)}
+                className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+                  isAutoDrawing
+                    ? 'bg-red-600 hover:bg-red-500'
+                    : 'bg-blue-600 hover:bg-blue-500'
+                }`}
+              >
+                {isAutoDrawing ? 'Parar Sorteio Automático' : 'Iniciar Sorteio Automático'}
+              </button>
+            </div>
+            
+            {/* Controles de Velocidade */}
+            {isAutoDrawing && (
+              <div className="flex items-center justify-center gap-4 bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+                <button
+                  onClick={() => setDrawSpeed('slow')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    drawSpeed === 'slow' ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  <Rewind size={16} />
+                  Lento
+                </button>
+                <button
+                  onClick={() => setDrawSpeed('normal')}
+                  className={`px-4 py-2 rounded-lg transition-all ${
+                    drawSpeed === 'normal' ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  Normal
+                </button>
+                <button
+                  onClick={() => setDrawSpeed('fast')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    drawSpeed === 'fast' ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                >
+                  Rápido
+                  <FastForward size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -337,10 +381,11 @@ function App() {
           ))}
         </div>
 
-        {/* Drawn Numbers */}
-        {drawnNumbers.length > 0 && (
-          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700 mb-8">
-            <h3 className="text-xl font-bold mb-4">Números Sorteados</h3>
+        {/* Números e Histórico */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Painel de Números */}
+          <div className="lg:col-span-2 bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+            <h3 className="text-xl font-bold mb-4">Painel de Números</h3>
             <div className="grid grid-cols-10 gap-2">
               {BINGO_NUMBERS.map(number => (
                 <div
@@ -356,7 +401,23 @@ function App() {
               ))}
             </div>
           </div>
-        )}
+
+          {/* Histórico de Números Sorteados */}
+          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+            <h3 className="text-xl font-bold mb-4">Histórico de Sorteio</h3>
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {drawnNumbersHistory.map((number, index) => (
+                <div
+                  key={`${number}-${index}`}
+                  className="flex items-center justify-between p-2 rounded-lg bg-gray-700/50"
+                >
+                  <span className="text-sm text-gray-400">#{drawnNumbersHistory.length - index}º</span>
+                  <span className="text-lg font-bold text-white">{number}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* Controls */}
         <div className="flex justify-between items-center">
