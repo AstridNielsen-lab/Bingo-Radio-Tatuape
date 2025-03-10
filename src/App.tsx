@@ -125,14 +125,13 @@ function App() {
     const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
     const newNumber = remainingNumbers[randomIndex];
     
-    const newDrawnNumbers = [...drawnNumbers, newNumber];
-    setDrawnNumbers(newDrawnNumbers);
+    setDrawnNumbers(prev => [...prev, newNumber]);
     setDrawnNumbersHistory(prev => [newNumber, ...prev]);
     markNumber(newNumber);
     playSound('draw');
 
     // Verificar se todos os números foram sorteados
-    if (newDrawnNumbers.length >= 100) {
+    if (drawnNumbers.length + 1 >= 100) {
       endGame();
       return;
     }
@@ -252,7 +251,7 @@ function App() {
           </div>
           <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
             <p className="text-sm text-gray-400 mb-1">Números Sorteados</p>
-            <p className="text-2xl font-bold">{drawnNumbers.length}/100</p>
+            <p className="text-2xl font-bold">{drawnNumbersHistory.length}/100</p>
           </div>
         </div>
 
