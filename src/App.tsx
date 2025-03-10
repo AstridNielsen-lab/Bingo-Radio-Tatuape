@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Volume2, VolumeX, Plus, Minus, Play, Square, Award } from 'lucide-react';
+import { Volume2, VolumeX, Play, Square } from 'lucide-react';
 
 // Tipos
 type BingoCard = {
@@ -24,12 +24,14 @@ function App() {
   const [cards, setCards] = useState<BingoCard[]>([]);
   const [drawnNumbers, setDrawnNumbers] = useState<number[]>([]);
   const [isGameRunning, setIsGameRunning] = useState(false);
+  const [isAutoDrawing, setIsAutoDrawing] = useState(false);
   const [sound, setSound] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedAmount, setSelectedAmount] = useState(5);
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [lastWin, setLastWin] = useState(0);
   const [winningPattern, setWinningPattern] = useState<WinPattern | null>(null);
+  const [gameOver, setGameOver] = useState(false);
 
   // Gerar uma cartela de bingo
   const generateBingoCard = (): BingoCard => {
@@ -104,20 +106,27 @@ function App() {
 
   // Sortear próximo número
   const drawNumber = () => {
-    if (!isGameRunning) return;
+    if (!isGameRunning || gameOver) return;
 
     const remainingNumbers = BINGO_NUMBERS.filter(n => !drawnNumbers.includes(n));
     if (remainingNumbers.length === 0) {
-      setIsGameRunning(false);
+      endGame();
       return;
     }
 
     const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
     const newNumber = remainingNumbers[randomIndex];
     
-    setDrawnNumbers(prev => [...prev, newNumber]);
+    const newDrawnNumbers = [...drawnNumbers, newNumber];
+    setDrawnNumbers(newDrawnNumbers);
     markNumber(newNumber);
     playSound('draw');
+
+    // Verificar se todos os números foram sorteados
+    if (newDrawnNumbers.length >= 75) {
+      endGame();
+      return;
+    }
 
     // Verificar vitórias
     cards.forEach(card => {
@@ -128,8 +137,16 @@ function App() {
         setLastWin(winAmount);
         setWinningPattern(pattern);
         playSound('win');
+        endGame();
       }
     });
+  };
+
+  // Encerrar o jogo
+  const endGame = () => {
+    setIsGameRunning(false);
+    setIsAutoDrawing(false);
+    setGameOver(true);
   };
 
   // Iniciar novo jogo
@@ -137,8 +154,10 @@ function App() {
     if (cards.length === 0) return;
     setDrawnNumbers([]);
     setIsGameRunning(true);
+    setIsAutoDrawing(false);
     setWinningPattern(null);
     setLastWin(0);
+    setGameOver(false);
     setCards(prev => prev.map(card => ({
       ...card,
       marks: Array(5).fill(null).map((_, row) => 
@@ -161,11 +180,11 @@ function App() {
   // Sorteio automático
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isGameRunning) {
-      interval = setInterval(drawNumber, 3000);
+    if (isGameRunning && isAutoDrawing && !gameOver) {
+      interval = setInterval(drawNumber, 8000);
     }
     return () => clearInterval(interval);
-  }, [isGameRunning]);
+  }, [isGameRunning, isAutoDrawing, gameOver]);
 
   // Criar preferência de pagamento
   const createPreference = async () => {
@@ -252,6 +271,47 @@ function App() {
             {isGameRunning ? 'Jogo em Andamento' : 'Iniciar Jogo'}
           </button>
         </div>
+
+        {/* Game Status */}
+        {gameOver && (
+          <div className="bg-yellow-600/20 border border-yellow-500/50 rounded-xl p-4 mb-8 text-center">
+            <p className="text-xl font-bold text-yellow-400">
+              {winningPattern ? 'Parabéns! Você ganhou!' : 'Fim do Jogo!'}
+            </p>
+            <p className="text-gray-300 mt-2">
+              {winningPattern 
+                ? `Você ganhou R$ ${lastWin.toFixed(2)}!` 
+                : 'Todos os números foram sorteados.'}
+            </p>
+          </div>
+        )}
+
+        {/* Draw Controls */}
+        {isGameRunning && !gameOver && (
+          <div className="flex gap-4 mb-8">
+            <button
+              onClick={drawNumber}
+              disabled={isAutoDrawing}
+              className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+                isAutoDrawing
+                  ? 'bg-gray-700 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500'
+              }`}
+            >
+              Sortear Número
+            </button>
+            <button
+              onClick={() => setIsAutoDrawing(!isAutoDrawing)}
+              className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
+                isAutoDrawing
+                  ? 'bg-red-600 hover:bg-red-500'
+                  : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+            >
+              {isAutoDrawing ? 'Parar Sorteio Automático' : 'Iniciar Sorteio Automático'}
+            </button>
+          </div>
+        )}
 
         {/* Bingo Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
