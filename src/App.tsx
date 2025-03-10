@@ -10,6 +10,13 @@ type BingoCard = {
 
 type WinPattern = 'line';
 
+type WinningResult = {
+  cardId: string;
+  amount: number;
+  pattern: WinPattern;
+  timestamp: number;
+};
+
 const CARD_PRICE = 5;
 const MAX_CARDS = 4;
 const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
@@ -46,6 +53,7 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [drawSpeed, setDrawSpeed] = useState<keyof typeof DRAW_SPEEDS>('normal');
   const [drawnNumbersHistory, setDrawnNumbersHistory] = useState<number[]>([]);
+  const [winningResults, setWinningResults] = useState<WinningResult[]>([]);
 
   const generateBingoCard = (): BingoCard => {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
@@ -128,12 +136,18 @@ function App() {
         setBalance(prev => prev + winAmount);
         setLastWin(winAmount);
         setWinningPattern(pattern);
+        setWinningResults(prev => [...prev, {
+          cardId: card.id,
+          amount: winAmount,
+          pattern,
+          timestamp: Date.now(),
+        }]);
         playSound('line');
       }
     });
 
     // Verificar fim do jogo
-    if (drawnNumbers.length + 1 >= 100) {
+    if (drawnNumbers.length + 1 >= 99) { // Changed to 99 since we're adding one more number
       endGame();
     }
   };
@@ -153,6 +167,7 @@ function App() {
     setWinningPattern(null);
     setLastWin(0);
     setGameOver(false);
+    setWinningResults([]);
     setCards(prev => prev.map(card => ({
       ...card,
       marks: Array(5).fill(null).map((_, row) => 
@@ -274,15 +289,33 @@ function App() {
 
         {/* Game Status */}
         {gameOver && (
-          <div className="bg-yellow-600/20 border border-yellow-500/50 rounded-xl p-4 mb-8 text-center">
-            <p className="text-xl font-bold text-yellow-400">
-              {winningPattern ? 'Parabéns! Você ganhou!' : 'Fim do Jogo!'}
+          <div className="bg-yellow-600/20 border border-yellow-500/50 rounded-xl p-4 mb-8">
+            <p className="text-xl font-bold text-yellow-400 text-center mb-4">
+              Fim do Jogo!
             </p>
-            <p className="text-gray-300 mt-2">
-              {winningPattern 
-                ? `Você ganhou R$ ${lastWin.toFixed(2)}!` 
-                : 'Todos os números foram sorteados.'}
-            </p>
+            {winningResults.length > 0 ? (
+              <div className="space-y-4">
+                <p className="text-lg text-center text-gray-300">
+                  Total de Prêmios: R$ {winningResults.reduce((sum, result) => sum + result.amount, 0).toFixed(2)}
+                </p>
+                <div className="space-y-2">
+                  {winningResults.map((result, index) => (
+                    <div key={index} className="bg-violet-800/30 p-3 rounded-lg border border-violet-700/50">
+                      <p className="font-bold text-yellow-400">
+                        Cartela #{result.cardId.slice(-4)}
+                      </p>
+                      <p className="text-gray-300">
+                        Prêmio: R$ {result.amount.toFixed(2)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-gray-300">
+                Nenhum prêmio nesta rodada. Tente novamente!
+              </p>
+            )}
           </div>
         )}
 
@@ -351,6 +384,17 @@ function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {cards.map(card => (
             <div key={card.id} className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm text-gray-300">Cartela #{card.id.slice(-4)}</span>
+                {winningResults.some(result => result.cardId === card.id) && (
+                  <span className="text-yellow-400 font-bold">
+                    Premiada! R$ {winningResults
+                      .filter(result => result.cardId === card.id)
+                      .reduce((sum, result) => sum + result.amount, 0)
+                      .toFixed(2)}
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-5 gap-2">
                 {card.numbers.map((row, rowIndex) => (
                   row.map((number, colIndex) => (
