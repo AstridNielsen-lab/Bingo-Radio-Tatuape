@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Volume2, VolumeX, FastForward, Rewind } from 'lucide-react';
+import { Volume2, VolumeX, FastForward, Rewind, HelpCircle } from 'lucide-react';
 
 // Tipos
 type BingoCard = {
@@ -8,21 +8,30 @@ type BingoCard = {
   marks: boolean[][];
 };
 
-type WinPattern = 'line' | 'column' | 'full';
+type WinPattern = 'line' | 'column' | 'diagonal' | 'corners' | 'full';
 
 const CARD_PRICE = 5;
 const MAX_CARDS = 4;
 const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
-  line: 10,
-  column: 10,
-  full: 50,
+  line: 15,
+  column: 15,
+  diagonal: 20,
+  corners: 10,
+  full: 100,
 };
 
 const DRAW_SPEEDS = {
   slow: 8000,
   normal: 4000,
   fast: 2000,
+};
+
+const SOUND_URLS = {
+  draw: 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3',
+  win: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3',
+  buy: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3',
+  line: 'https://assets.mixkit.co/active_storage/sfx/2002/2002-preview.mp3',
 };
 
 function App() {
@@ -33,6 +42,7 @@ function App() {
   const [isAutoDrawing, setIsAutoDrawing] = useState(false);
   const [sound, setSound] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [selectedAmount, setSelectedAmount] = useState(5);
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [lastWin, setLastWin] = useState(0);
@@ -46,20 +56,17 @@ function App() {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
     const marks: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
     
-    // Preencher cada coluna com números apropriados
     for (let col = 0; col < 5; col++) {
       const min = col * 20 + 1;
       const max = min + 19;
       const columnNumbers = Array.from({ length: 20 }, (_, i) => min + i);
       
-      // Embaralhar e pegar os primeiros 5 números
       for (let row = 0; row < 5; row++) {
         const randomIndex = Math.floor(Math.random() * columnNumbers.length);
         numbers[row][col] = columnNumbers.splice(randomIndex, 1)[0];
       }
     }
 
-    // Espaço central livre
     numbers[2][2] = 0;
     marks[2][2] = true;
 
@@ -90,6 +97,19 @@ function App() {
     for (let col = 0; col < 5; col++) {
       if (card.marks.every(row => row[col])) return 'column';
     }
+
+    // Verificar diagonais
+    const mainDiagonal = Array(5).every((_, i) => card.marks[i][i]);
+    const secondaryDiagonal = Array(5).every((_, i) => card.marks[i][4 - i]);
+    if (mainDiagonal || secondaryDiagonal) return 'diagonal';
+
+    // Verificar cantos
+    const corners = 
+      card.marks[0][0] && 
+      card.marks[0][4] && 
+      card.marks[4][0] && 
+      card.marks[4][4];
+    if (corners) return 'corners';
 
     // Verificar cartela completa
     if (card.marks.every(row => row.every(mark => mark))) return 'full';
@@ -130,12 +150,6 @@ function App() {
     markNumber(newNumber);
     playSound('draw');
 
-    // Verificar se todos os números foram sorteados
-    if (drawnNumbers.length + 1 >= 100) {
-      endGame();
-      return;
-    }
-
     // Verificar vitórias
     cards.forEach(card => {
       const pattern = checkWin(card);
@@ -144,10 +158,14 @@ function App() {
         setBalance(prev => prev + winAmount);
         setLastWin(winAmount);
         setWinningPattern(pattern);
-        playSound('win');
-        endGame();
+        playSound(pattern === 'line' ? 'line' : 'win');
       }
     });
+
+    // Verificar fim do jogo
+    if (drawnNumbers.length + 1 >= 100) {
+      endGame();
+    }
   };
 
   // Encerrar o jogo
@@ -176,14 +194,9 @@ function App() {
   };
 
   // Efeitos sonoros
-  const playSound = useCallback((soundName: 'draw' | 'win' | 'buy') => {
+  const playSound = useCallback((soundName: keyof typeof SOUND_URLS) => {
     if (!sound) return;
-    const sounds = {
-      draw: 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3',
-      win: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3',
-      buy: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3',
-    };
-    new Audio(sounds[soundName]).play();
+    new Audio(SOUND_URLS[soundName]).play();
   }, [sound]);
 
   // Sorteio automático
@@ -206,7 +219,7 @@ function App() {
         },
         body: JSON.stringify({
           items: [{
-            title: `Créditos Bingo Rádio Tatuapé - R$ ${selectedAmount.toFixed(2)}`,
+            title: `Créditos Super Bingo Online - R$ ${selectedAmount.toFixed(2)}`,
             quantity: 1,
             currency_id: 'BRL',
             unit_price: selectedAmount,
@@ -227,31 +240,36 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-violet-900 to-purple-900 text-white flex flex-col">
       {/* Header */}
       <header className="w-full py-6 px-4 text-center bg-black/30">
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-          Bingo Rádio Tatuapé
+        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-purple-400">
+          Super Bingo Online
         </h1>
+        <p className="mt-2 text-gray-300">O melhor bingo virtual com prêmios reais!</p>
       </header>
 
       {/* Main Content */}
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8">
         {/* Status Bar */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
-            <p className="text-sm text-gray-400 mb-1">Saldo</p>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+            <p className="text-sm text-gray-300 mb-1">Saldo</p>
             <p className="text-2xl font-bold">R$ {balance.toFixed(2)}</p>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
-            <p className="text-sm text-gray-400 mb-1">Último Prêmio</p>
-            <p className="text-2xl font-bold text-green-500">
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+            <p className="text-sm text-gray-300 mb-1">Último Prêmio</p>
+            <p className="text-2xl font-bold text-yellow-400">
               {lastWin > 0 ? `R$ ${lastWin.toFixed(2)}` : '-'}
             </p>
           </div>
-          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
-            <p className="text-sm text-gray-400 mb-1">Números Sorteados</p>
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+            <p className="text-sm text-gray-300 mb-1">Números Sorteados</p>
             <p className="text-2xl font-bold">{drawnNumbersHistory.length}/100</p>
+          </div>
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+            <p className="text-sm text-gray-300 mb-1">Prêmio Máximo</p>
+            <p className="text-2xl font-bold text-yellow-400">R$ {(CARD_PRICE * WIN_MULTIPLIERS.full).toFixed(2)}</p>
           </div>
         </div>
 
@@ -274,11 +292,32 @@ function App() {
             className={`flex-1 py-4 px-6 rounded-lg font-bold text-lg transition-all ${
               cards.length === 0 || isGameRunning
                 ? 'bg-gray-700 cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500'
+                : 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500'
             }`}
           >
             {isGameRunning ? 'Jogo em Andamento' : 'Iniciar Jogo'}
           </button>
+          <button
+            onClick={() => setShowHowToPlay(true)}
+            className="p-4 rounded-lg bg-violet-800/50 backdrop-blur border border-violet-700 hover:bg-violet-700/50 transition-colors"
+          >
+            <HelpCircle size={24} />
+          </button>
+        </div>
+
+        {/* Prêmios */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          {Object.entries(WIN_MULTIPLIERS).map(([pattern, multiplier]) => (
+            <div key={pattern} className="bg-violet-800/30 p-4 rounded-lg border border-violet-700/50">
+              <p className="text-yellow-400 font-bold mb-1 capitalize">
+                {pattern === 'line' ? 'Linha' :
+                 pattern === 'column' ? 'Coluna' :
+                 pattern === 'diagonal' ? 'Diagonal' :
+                 pattern === 'corners' ? 'Cantos' : 'Cartela Completa'}
+              </p>
+              <p className="text-lg font-bold">R$ {(CARD_PRICE * multiplier).toFixed(2)}</p>
+            </div>
+          ))}
         </div>
 
         {/* Game Status */}
@@ -324,7 +363,7 @@ function App() {
             
             {/* Controles de Velocidade */}
             {isAutoDrawing && (
-              <div className="flex items-center justify-center gap-4 bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+              <div className="flex items-center justify-center gap-4 bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
                 <button
                   onClick={() => setDrawSpeed('slow')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
@@ -359,7 +398,7 @@ function App() {
         {/* Bingo Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {cards.map(card => (
-            <div key={card.id} className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+            <div key={card.id} className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
               <div className="grid grid-cols-5 gap-2">
                 {card.numbers.map((row, rowIndex) => (
                   row.map((number, colIndex) => (
@@ -369,7 +408,7 @@ function App() {
                         card.marks[rowIndex][colIndex]
                           ? 'bg-purple-600 text-white'
                           : 'bg-gray-700 text-gray-300'
-                      } ${number === 0 ? 'bg-pink-600' : ''}`}
+                      } ${number === 0 ? 'bg-yellow-600' : ''}`}
                     >
                       {number === 0 ? '★' : number}
                     </div>
@@ -383,7 +422,7 @@ function App() {
         {/* Números e Histórico */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Painel de Números */}
-          <div className="lg:col-span-2 bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+          <div className="lg:col-span-2 bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <h3 className="text-xl font-bold mb-4">Painel de Números</h3>
             <div className="grid grid-cols-10 gap-2">
               {BINGO_NUMBERS.map(number => (
@@ -402,7 +441,7 @@ function App() {
           </div>
 
           {/* Histórico de Números Sorteados */}
-          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 border border-gray-700">
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <h3 className="text-xl font-bold mb-4">Histórico de Sorteio</h3>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {drawnNumbersHistory.map((number, index) => (
@@ -428,7 +467,7 @@ function App() {
           </button>
           <button
             onClick={() => setSound(!sound)}
-            className="p-3 rounded-lg bg-gray-800/50 backdrop-blur border border-gray-700 hover:bg-gray-700/50 transition-colors"
+            className="p-3 rounded-lg bg-violet-800/50 backdrop-blur border border-violet-700 hover:bg-violet-700/50 transition-colors"
           >
             {sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
           </button>
@@ -464,7 +503,7 @@ function App() {
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 p-6 rounded-xl max-w-md w-full border border-gray-700">
+          <div className="bg-violet-900 p-6 rounded-xl max-w-md w-full border border-violet-700">
             <h2 className="text-xl font-bold mb-4">Adicionar Saldo</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-2">
@@ -500,6 +539,53 @@ function App() {
                 Cancelar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* How to Play Modal */}
+      {showHowToPlay && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-violet-900 p-6 rounded-xl max-w-2xl w-full border border-violet-700">
+            <h2 className="text-2xl font-bold mb-4">Como Jogar</h2>
+            <div className="space-y-4 text-gray-300">
+              <div>
+                <h3 className="text-lg font-bold text-white mb-2">Regras Básicas</h3>
+                <ul className="list-disc list-inside space-y-2">
+                  <li>Compre até 4 cartelas por R$ {CARD_PRICE.toFixed(2)} cada</li>
+                  <li>Cada cartela tem 24 números e um espaço livre no centro</li>
+                  <li>Os números são sorteados automaticamente ou manualmente</li>
+                  <li>Marque os números sorteados em suas cartelas</li>
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-bold text-white mb-2">Prêmios</h3>
+                <ul className="list-disc list-inside space-y-2">
+                  <li>Linha Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.line).toFixed(2)}</li>
+                  <li>Coluna Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.column).toFixed(2)}</li>
+                  <li>Diagonal Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.diagonal).toFixed(2)}</li>
+                  <li>Cantos Completos: R$ {(CARD_PRICE * WIN_MULTIPLIERS.corners).toFixed(2)}</li>
+                  <li>Cartela Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.full).toFixed(2)}</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-white mb-2">Dicas</h3>
+                <ul className="list-disc list-inside space-y-2">
+                  <li>Quanto mais cartelas, mais chances de ganhar</li>
+                  <li>Use o sorteio automático para maior agilidade</li>
+                  <li>Fique atento aos números sorteados no painel</li>
+                  <li>Os prêmios são acumulativos por cartela</li>
+                </ul>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowHowToPlay(false)}
+              className="w-full mt-6 py-2 px-4 bg-purple-600 rounded hover:bg-purple-500"
+            >
+              Entendi
+            </button>
           </div>
         </div>
       )}
