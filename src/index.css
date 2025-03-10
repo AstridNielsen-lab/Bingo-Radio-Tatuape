@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .shadow-neon {
+    box-shadow: 0 0 10px theme('colors.purple.400'),
+                0 0 20px theme('colors.purple.300'),
+                0 0 30px theme('colors.purple.200');
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
