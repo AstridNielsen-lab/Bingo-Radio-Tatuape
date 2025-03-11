@@ -21,7 +21,7 @@ const CARD_PRICE = 5;
 const MAX_CARDS = 4;
 const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
-  line: 15,
+  line: 1, // Alterado para que o prêmio seja exatamente 5 reais
 };
 
 const DRAW_SPEEDS = {
@@ -54,6 +54,7 @@ function App() {
   const [drawSpeed, setDrawSpeed] = useState<keyof typeof DRAW_SPEEDS>('normal');
   const [drawnNumbersHistory, setDrawnNumbersHistory] = useState<number[]>([]);
   const [winningResults, setWinningResults] = useState<WinningResult[]>([]);
+  const [totalPrize, setTotalPrize] = useState(0); // Novo estado para o prêmio total
 
   const generateBingoCard = (): BingoCard => {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
@@ -123,16 +124,19 @@ function App() {
     const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
     const newNumber = remainingNumbers[randomIndex];
     
-    setDrawnNumbers(prev => [...prev, newNumber]);
+    const newDrawnNumbers = [...drawnNumbers, newNumber];
+    setDrawnNumbers(newDrawnNumbers);
     setDrawnNumbersHistory(prev => [newNumber, ...prev]);
     markNumber(newNumber);
     playSound('draw');
 
     // Verificar vitórias
+    let roundPrize = 0;
     cards.forEach(card => {
       const pattern = checkWin(card);
       if (pattern) {
-        const winAmount = CARD_PRICE * WIN_MULTIPLIERS[pattern];
+        const winAmount = 5; // Prêmio fixo de 5 reais por linha
+        roundPrize += winAmount;
         setBalance(prev => prev + winAmount);
         setLastWin(winAmount);
         setWinningPattern(pattern);
@@ -146,8 +150,12 @@ function App() {
       }
     });
 
-    // Verificar fim do jogo
-    if (drawnNumbers.length + 1 >= 99) { // Changed to 99 since we're adding one more number
+    if (roundPrize > 0) {
+      setTotalPrize(prev => prev + roundPrize);
+    }
+
+    // Verificar fim do jogo quando atingir 100 números
+    if (newDrawnNumbers.length >= 100) {
       endGame();
     }
   };
@@ -156,6 +164,7 @@ function App() {
     setIsGameRunning(false);
     setIsAutoDrawing(false);
     setGameOver(true);
+    playSound('win');
   };
 
   const startNewGame = () => {
@@ -168,6 +177,7 @@ function App() {
     setLastWin(0);
     setGameOver(false);
     setWinningResults([]);
+    setTotalPrize(0); // Resetar o prêmio total
     setCards(prev => prev.map(card => ({
       ...card,
       marks: Array(5).fill(null).map((_, row) => 
@@ -232,7 +242,7 @@ function App() {
       {/* Main Content */}
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8">
         {/* Status Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Saldo</p>
             <p className="text-2xl font-bold">R$ {balance.toFixed(2)}</p>
@@ -242,6 +252,10 @@ function App() {
             <p className="text-2xl font-bold text-yellow-400">
               {lastWin > 0 ? `R$ ${lastWin.toFixed(2)}` : '-'}
             </p>
+          </div>
+          <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
+            <p className="text-sm text-gray-300 mb-1">Total de Prêmios</p>
+            <p className="text-2xl font-bold text-green-400">R$ {totalPrize.toFixed(2)}</p>
           </div>
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Números Sorteados</p>
@@ -284,7 +298,7 @@ function App() {
         {/* Prêmios */}
         <div className="bg-violet-800/30 p-4 rounded-lg border border-violet-700/50 mb-8">
           <p className="text-yellow-400 font-bold mb-1">Prêmio por Linha Completa</p>
-          <p className="text-2xl font-bold">R$ {(CARD_PRICE * WIN_MULTIPLIERS.line).toFixed(2)}</p>
+          <p className="text-2xl font-bold">R$ 5,00</p>
         </div>
 
         {/* Game Status */}
@@ -296,7 +310,7 @@ function App() {
             {winningResults.length > 0 ? (
               <div className="space-y-4">
                 <p className="text-lg text-center text-gray-300">
-                  Total de Prêmios: R$ {winningResults.reduce((sum, result) => sum + result.amount, 0).toFixed(2)}
+                  Total de Prêmios: R$ {totalPrize.toFixed(2)}
                 </p>
                 <div className="space-y-2">
                   {winningResults.map((result, index) => (
@@ -558,7 +572,7 @@ function App() {
               <div>
                 <h3 className="text-lg font-bold text-white mb-2">Prêmios</h3>
                 <ul className="list-disc list-inside space-y-2">
-                  <li>Linha Completa: R$ {(CARD_PRICE * WIN_MULTIPLIERS.line).toFixed(2)}</li>
+                  <li>Linha Completa: R$ 5,00</li>
                   <li>Você pode ganhar múltiplas vezes com a mesma cartela!</li>
                 </ul>
               </div>
