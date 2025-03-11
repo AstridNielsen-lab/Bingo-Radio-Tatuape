@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Volume2, VolumeX, FastForward, Rewind, HelpCircle } from 'lucide-react';
 
-// Tipos
 type BingoCard = {
   id: string;
   numbers: number[][];
@@ -97,12 +96,10 @@ function App() {
     const newCompletedLines = [...card.completedLines.map(row => [...row])];
     let hasWin = false;
 
-    // Verificar linhas
     for (let row = 0; row < 5; row++) {
       const isLineComplete = card.marks[row].every(mark => mark);
       if (isLineComplete && !card.completedLines[row].every(completed => completed)) {
         hasWin = true;
-        // Marcar linha completa
         for (let col = 0; col < 5; col++) {
           newCompletedLines[row][col] = true;
         }
@@ -156,7 +153,7 @@ function App() {
     if (!isGameRunning || gameOver) return;
 
     const remainingNumbers = BINGO_NUMBERS.filter(n => !drawnNumbers.includes(n));
-    if (remainingNumbers.length === 0) {
+    if (remainingNumbers.length === 0 || drawnNumbers.length >= 100) {
       endGame();
       return;
     }
@@ -164,14 +161,13 @@ function App() {
     const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
     const newNumber = remainingNumbers[randomIndex];
     
-    const newDrawnNumbers = [...drawnNumbers, newNumber];
-    setDrawnNumbers(newDrawnNumbers);
+    setDrawnNumbers(prev => [...prev, newNumber]);
     setDrawnNumbersHistory(prev => [newNumber, ...prev]);
     setLastDrawnNumber(newNumber);
     markNumber(newNumber);
     playSound('draw');
 
-    if (newDrawnNumbers.length >= 100) {
+    if (drawnNumbers.length >= 99) {
       endGame();
     }
   };
@@ -249,7 +245,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-violet-900 to-purple-900 text-white flex flex-col">
-      {/* Header */}
       <header className="w-full py-6 px-4 text-center bg-black/30">
         <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 to-purple-400">
           Super Bingo Online
@@ -257,9 +252,7 @@ function App() {
         <p className="mt-2 text-gray-300">O melhor bingo virtual com prêmios reais!</p>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 container mx-auto max-w-6xl px-4 py-8">
-        {/* Status Bar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Saldo</p>
@@ -281,7 +274,6 @@ function App() {
           </div>
         </div>
 
-        {/* Game Controls */}
         <div className="flex gap-4 mb-8">
           <button
             onClick={buyCard}
@@ -313,13 +305,11 @@ function App() {
           </button>
         </div>
 
-        {/* Prêmios */}
         <div className="bg-violet-800/30 p-4 rounded-lg border border-violet-700/50 mb-8">
           <p className="text-yellow-400 font-bold mb-1">Prêmio por Linha Completa</p>
           <p className="text-2xl font-bold">R$ 5,00</p>
         </div>
 
-        {/* Game Status */}
         {gameOver && (
           <div className="bg-yellow-600/20 border border-yellow-500/50 rounded-xl p-4 mb-8">
             <p className="text-xl font-bold text-yellow-400 text-center mb-4">
@@ -351,7 +341,6 @@ function App() {
           </div>
         )}
 
-        {/* Draw Controls */}
         {isGameRunning && !gameOver && (
           <div className="space-y-4 mb-8">
             <div className="flex gap-4">
@@ -378,7 +367,6 @@ function App() {
               </button>
             </div>
             
-            {/* Controles de Velocidade */}
             {isAutoDrawing && (
               <div className="flex items-center justify-center gap-4 bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
                 <button
@@ -412,7 +400,6 @@ function App() {
           </div>
         )}
 
-        {/* Bingo Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           {cards.map(card => (
             <div key={card.id} className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
@@ -449,9 +436,7 @@ function App() {
           ))}
         </div>
 
-        {/* Números e Histórico */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Painel de Números */}
           <div className="lg:col-span-2 bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <h3 className="text-xl font-bold mb-4">Painel de Números</h3>
             <div className="grid grid-cols-10 gap-2">
@@ -462,7 +447,7 @@ function App() {
                     number === lastDrawnNumber
                       ? 'bg-yellow-500 text-black animate-pulse'
                       : drawnNumbers.includes(number)
-                        ? 'bg-purple-600 text-white'
+                        ? 'bg-green-400 text-black'
                         : 'bg-gray-700/50 text-gray-400'
                   }`}
                 >
@@ -472,7 +457,6 @@ function App() {
             </div>
           </div>
 
-          {/* Histórico de Números Sorteados */}
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <h3 className="text-xl font-bold mb-4">Histórico de Sorteio</h3>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
@@ -489,7 +473,6 @@ function App() {
           </div>
         </div>
 
-        {/* Controls */}
         <div className="flex justify-between items-center">
           <button
             onClick={() => setShowPaymentModal(true)}
@@ -506,7 +489,6 @@ function App() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="w-full py-6 px-4 bg-black/30 text-center">
         <div className="container mx-auto max-w-2xl">
           <p className="font-medium mb-2">Desenvolvido por Julio Campos Machado</p>
@@ -532,7 +514,6 @@ function App() {
         </div>
       </footer>
 
-      {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-violet-900 p-6 rounded-xl max-w-md w-full border border-violet-700">
@@ -558,7 +539,6 @@ function App() {
               </div>
               {preferenceId && (
                 <div className="mt-4">
-                  {/* Aqui vai o componente do Mercado Pago */}
                 </div>
               )}
               <button
@@ -575,7 +555,6 @@ function App() {
         </div>
       )}
 
-      {/* How to Play Modal */}
       {showHowToPlay && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-violet-900 p-6 rounded-xl max-w-2xl w-full border border-violet-700">
