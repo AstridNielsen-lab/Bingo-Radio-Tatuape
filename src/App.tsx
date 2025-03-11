@@ -23,6 +23,7 @@ const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
   line: 1,
 };
+const WIN_CHANCE = 0.05; // 5% chance de ganhar
 
 const DRAW_SPEEDS = {
   slow: 8000,
@@ -57,15 +58,26 @@ function App() {
   const [totalPrize, setTotalPrize] = useState(0);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
 
+  const shouldAllowWin = () => {
+    return Math.random() < WIN_CHANCE;
+  };
+
   const generateBingoCard = (): BingoCard => {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
     const marks: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
     const completedLines: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
     
+    const willWin = shouldAllowWin();
+    
     for (let col = 0; col < 5; col++) {
       const min = col * 20 + 1;
       const max = min + 19;
-      const columnNumbers = Array.from({ length: 20 }, (_, i) => min + i);
+      let columnNumbers = Array.from({ length: 20 }, (_, i) => min + i);
+      
+      // Se a cartela deve ganhar, garante números que serão sorteados no início
+      if (willWin && col === 0) {
+        columnNumbers = columnNumbers.slice(0, 5); // Usa apenas os primeiros números da coluna
+      }
       
       for (let row = 0; row < 5; row++) {
         const randomIndex = Math.floor(Math.random() * columnNumbers.length);
@@ -158,8 +170,35 @@ function App() {
       return;
     }
 
-    const randomIndex = Math.floor(Math.random() * remainingNumbers.length);
-    const newNumber = remainingNumbers[randomIndex];
+    // Prioriza números que podem levar à vitória para cartelas com chance de ganhar
+    let newNumber: number;
+    const winningCards = cards.filter(card => 
+      card.numbers.some(row => 
+        row.some(num => !drawnNumbers.includes(num) && remainingNumbers.includes(num))
+      )
+    );
+
+    if (winningCards.length > 0 && Math.random() < WIN_CHANCE) {
+      const potentialNumbers = new Set<number>();
+      winningCards.forEach(card => {
+        card.numbers.forEach(row => {
+          row.forEach(num => {
+            if (!drawnNumbers.includes(num) && remainingNumbers.includes(num)) {
+              potentialNumbers.add(num);
+            }
+          });
+        });
+      });
+      
+      const winningNumbers = Array.from(potentialNumbers);
+      if (winningNumbers.length > 0) {
+        newNumber = winningNumbers[Math.floor(Math.random() * winningNumbers.length)];
+      } else {
+        newNumber = remainingNumbers[Math.floor(Math.random() * remainingNumbers.length)];
+      }
+    } else {
+      newNumber = remainingNumbers[Math.floor(Math.random() * remainingNumbers.length)];
+    }
     
     setDrawnNumbers(prev => [...prev, newNumber]);
     setDrawnNumbersHistory(prev => [newNumber, ...prev]);
