@@ -6,6 +6,7 @@ type BingoCard = {
   id: string;
   numbers: number[][];
   marks: boolean[][];
+  completedLines: boolean[][];
 };
 
 type WinPattern = 'line';
@@ -21,7 +22,7 @@ const CARD_PRICE = 5;
 const MAX_CARDS = 4;
 const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
-  line: 1, // Alterado para que o prêmio seja exatamente 5 reais
+  line: 1,
 };
 
 const DRAW_SPEEDS = {
@@ -54,11 +55,13 @@ function App() {
   const [drawSpeed, setDrawSpeed] = useState<keyof typeof DRAW_SPEEDS>('normal');
   const [drawnNumbersHistory, setDrawnNumbersHistory] = useState<number[]>([]);
   const [winningResults, setWinningResults] = useState<WinningResult[]>([]);
-  const [totalPrize, setTotalPrize] = useState(0); // Novo estado para o prêmio total
+  const [totalPrize, setTotalPrize] = useState(0);
+  const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
 
   const generateBingoCard = (): BingoCard => {
     const numbers: number[][] = Array(5).fill(null).map(() => Array(5).fill(0));
     const marks: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
+    const completedLines: boolean[][] = Array(5).fill(null).map(() => Array(5).fill(false));
     
     for (let col = 0; col < 5; col++) {
       const min = col * 20 + 1;
@@ -78,6 +81,7 @@ function App() {
       id: Math.random().toString(36).substr(2, 9),
       numbers,
       marks,
+      completedLines,
     };
   };
 
@@ -89,16 +93,30 @@ function App() {
     }
   };
 
-  const checkWin = (card: BingoCard): WinPattern | null => {
+  const checkWin = (card: BingoCard): { pattern: WinPattern | null; completedLines: boolean[][] } => {
+    const newCompletedLines = [...card.completedLines.map(row => [...row])];
+    let hasWin = false;
+
     // Verificar linhas
     for (let row = 0; row < 5; row++) {
-      if (card.marks[row].every(mark => mark)) return 'line';
+      const isLineComplete = card.marks[row].every(mark => mark);
+      if (isLineComplete && !card.completedLines[row].every(completed => completed)) {
+        hasWin = true;
+        // Marcar linha completa
+        for (let col = 0; col < 5; col++) {
+          newCompletedLines[row][col] = true;
+        }
+      }
     }
 
-    return null;
+    return {
+      pattern: hasWin ? 'line' : null,
+      completedLines: newCompletedLines,
+    };
   };
 
   const markNumber = (number: number) => {
+    let hasNewWin = false;
     setCards(prev => prev.map(card => {
       const newMarks = [...card.marks.map(row => [...row])];
       for (let row = 0; row < 5; row++) {
@@ -108,8 +126,30 @@ function App() {
           }
         }
       }
-      return { ...card, marks: newMarks };
+      
+      const { pattern, completedLines } = checkWin({ ...card, marks: newMarks });
+      if (pattern) {
+        hasNewWin = true;
+        const winAmount = 5;
+        setBalance(prev => prev + winAmount);
+        setLastWin(winAmount);
+        setWinningPattern(pattern);
+        setWinningResults(prev => [...prev, {
+          cardId: card.id,
+          amount: winAmount,
+          pattern,
+          timestamp: Date.now(),
+        }]);
+        setTotalPrize(prev => prev + winAmount);
+        playSound('line');
+      }
+      
+      return { ...card, marks: newMarks, completedLines };
     }));
+
+    if (hasNewWin) {
+      playSound('win');
+    }
   };
 
   const drawNumber = () => {
@@ -127,34 +167,10 @@ function App() {
     const newDrawnNumbers = [...drawnNumbers, newNumber];
     setDrawnNumbers(newDrawnNumbers);
     setDrawnNumbersHistory(prev => [newNumber, ...prev]);
+    setLastDrawnNumber(newNumber);
     markNumber(newNumber);
     playSound('draw');
 
-    // Verificar vitórias
-    let roundPrize = 0;
-    cards.forEach(card => {
-      const pattern = checkWin(card);
-      if (pattern) {
-        const winAmount = 5; // Prêmio fixo de 5 reais por linha
-        roundPrize += winAmount;
-        setBalance(prev => prev + winAmount);
-        setLastWin(winAmount);
-        setWinningPattern(pattern);
-        setWinningResults(prev => [...prev, {
-          cardId: card.id,
-          amount: winAmount,
-          pattern,
-          timestamp: Date.now(),
-        }]);
-        playSound('line');
-      }
-    });
-
-    if (roundPrize > 0) {
-      setTotalPrize(prev => prev + roundPrize);
-    }
-
-    // Verificar fim do jogo quando atingir 100 números
     if (newDrawnNumbers.length >= 100) {
       endGame();
     }
@@ -177,12 +193,14 @@ function App() {
     setLastWin(0);
     setGameOver(false);
     setWinningResults([]);
-    setTotalPrize(0); // Resetar o prêmio total
+    setTotalPrize(0);
+    setLastDrawnNumber(null);
     setCards(prev => prev.map(card => ({
       ...card,
       marks: Array(5).fill(null).map((_, row) => 
         Array(5).fill(false).map((_, col) => row === 2 && col === 2)
       ),
+      completedLines: Array(5).fill(null).map(() => Array(5).fill(false)),
     })));
   };
 
@@ -259,7 +277,7 @@ function App() {
           </div>
           <div className="bg-violet-800/50 backdrop-blur rounded-xl p-4 border border-violet-700">
             <p className="text-sm text-gray-300 mb-1">Números Sorteados</p>
-            <p className="text-2xl font-bold">{drawnNumbersHistory.length}/100</p>
+            <p className="text-2xl font-bold">{drawnNumbers.length}/100</p>
           </div>
         </div>
 
@@ -415,9 +433,11 @@ function App() {
                     <div
                       key={`${rowIndex}-${colIndex}`}
                       className={`aspect-square flex items-center justify-center rounded-lg text-lg font-bold ${
-                        card.marks[rowIndex][colIndex]
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-700 text-gray-300'
+                        card.completedLines[rowIndex][colIndex]
+                          ? 'bg-yellow-500 text-black animate-pulse'
+                          : card.marks[rowIndex][colIndex]
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-700 text-gray-300'
                       } ${number === 0 ? 'bg-yellow-600' : ''}`}
                     >
                       {number === 0 ? '★' : number}
@@ -439,9 +459,11 @@ function App() {
                 <div
                   key={number}
                   className={`aspect-square flex items-center justify-center rounded-lg text-sm font-bold ${
-                    drawnNumbers.includes(number)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-700/50 text-gray-400'
+                    number === lastDrawnNumber
+                      ? 'bg-yellow-500 text-black animate-pulse'
+                      : drawnNumbers.includes(number)
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-700/50 text-gray-400'
                   }`}
                 >
                   {number}
