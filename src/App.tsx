@@ -1,5 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Volume2, VolumeX, FastForward, Rewind, HelpCircle } from 'lucide-react';
+import { initMercadoPago, Wallet } from '@mercadopago/sdk-react';
+
+// Inicializa o Mercado Pago com a chave pública
+initMercadoPago('APP_USR-89626122-2e4b-4cb0-9817-c55ef42ed140', { locale: 'pt-BR' });
 
 type BingoCard = {
   id: string;
@@ -23,7 +27,7 @@ const BINGO_NUMBERS = Array.from({ length: 100 }, (_, i) => i + 1);
 const WIN_MULTIPLIERS = {
   line: 1,
 };
-const WIN_CHANCE = 0.05; // 5% chance de ganhar
+const WIN_CHANCE = 0.05;
 
 const DRAW_SPEEDS = {
   slow: 8000,
@@ -57,6 +61,7 @@ function App() {
   const [winningResults, setWinningResults] = useState<WinningResult[]>([]);
   const [totalPrize, setTotalPrize] = useState(0);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const shouldAllowWin = () => {
     return Math.random() < WIN_CHANCE;
@@ -74,9 +79,8 @@ function App() {
       const max = min + 19;
       let columnNumbers = Array.from({ length: 20 }, (_, i) => min + i);
       
-      // Se a cartela deve ganhar, garante números que serão sorteados no início
       if (willWin && col === 0) {
-        columnNumbers = columnNumbers.slice(0, 5); // Usa apenas os primeiros números da coluna
+        columnNumbers = columnNumbers.slice(0, 5);
       }
       
       for (let row = 0; row < 5; row++) {
@@ -170,7 +174,6 @@ function App() {
       return;
     }
 
-    // Prioriza números que podem levar à vitória para cartelas com chance de ganhar
     let newNumber: number;
     const winningCards = cards.filter(card => 
       card.numbers.some(row => 
@@ -241,7 +244,7 @@ function App() {
 
   const playSound = useCallback((soundName: keyof typeof SOUND_URLS) => {
     if (!sound) return;
-    new Audio(SOUND_URLS[soundName]).play();
+    new Audio(SOUND_URLS[soundName]).play().catch(() => {});
   }, [sound]);
 
   useEffect(() => {
@@ -254,10 +257,11 @@ function App() {
 
   const createPreference = async () => {
     try {
+      setIsProcessingPayment(true);
       const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer APP_USR-3499365808502924-030421-87e0e7b8e7dbeba725542f6d1f07162b-29008060',
+          'Authorization': 'Bearer APP_USR-3581564190523037-031023-d3a76685b122d5702bee3178000269c3-29008060',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -275,12 +279,40 @@ function App() {
           auto_return: 'approved',
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Erro ao criar preferência de pagamento');
+      }
+
       const data = await response.json();
       setPreferenceId(data.id);
     } catch (error) {
-      console.error('Error creating payment preference:', error);
+      console.error('Erro ao criar preferência:', error);
+      alert('Erro ao processar pagamento. Tente novamente.');
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
+
+  const handlePaymentSuccess = useCallback((status: string, payment_id: string) => {
+    if (status === 'approved') {
+      setBalance(prev => prev + selectedAmount);
+      alert(`Pagamento aprovado! R$ ${selectedAmount.toFixed(2)} adicionados ao seu saldo.`);
+      setShowPaymentModal(false);
+      setPreferenceId(null);
+    }
+  }, [selectedAmount]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const status = urlParams.get('status');
+    const payment_id = urlParams.get('payment_id');
+
+    if (status && payment_id) {
+      handlePaymentSuccess(status, payment_id);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [handlePaymentSuccess]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-violet-900 to-purple-900 text-white flex flex-col">
@@ -566,18 +598,45 @@ function App() {
                       setSelectedAmount(amount);
                       createPreference();
                     }}
+                    disabled={isProcessingPayment}
                     className={`p-2 rounded ${
                       selectedAmount === amount
                         ? 'bg-purple-600'
                         : 'bg-gray-700 hover:bg-gray-600'
-                    }`}
+                    } ${isProcessingPayment ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     R$ {amount}
                   </button>
                 ))}
               </div>
-              {preferenceId && (
+              {isProcessingPayment && (
+                <div className="text-center py-2">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
+                  <p className="mt-2">Processando...</p>
+                </div>
+              )}
+              {preferenceId && !isProcessingPayment && (
                 <div className="mt-4">
+                  <Wallet 
+                    initialization={{ preferenceId: preferenceId }}
+                    customization={{
+                      texts: { valueProp: 'smart_option' },
+                      visual: {
+                        buttonBackground: 'black',
+                        borderRadius: '6px',
+                      }
+                    }}
+                    onReady={() => {
+                      console.log('Botão do Mercado Pago pronto');
+                    }}
+                    onError={() => {
+                      alert('Erro ao carregar o botão de pagamento. Tente novamente.');
+                      setPreferenceId(null);
+                    }}
+                    onSubmit={() => {
+                                      console.log('Pagamento iniciado');
+                    }}
+                  />
                 </div>
               )}
               <button
@@ -585,7 +644,10 @@ function App() {
                   setShowPaymentModal(false);
                   setPreferenceId(null);
                 }}
-                className="w-full py-2 px-4 bg-gray-700 rounded hover:bg-gray-600"
+                disabled={isProcessingPayment}
+                className={`w-full py-2 px-4 bg-gray-700 rounded hover:bg-gray-600 ${
+                  isProcessingPayment ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Cancelar
               </button>
